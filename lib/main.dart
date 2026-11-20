@@ -31,6 +31,8 @@ class _PostPageState extends State<PostPage> {
   List<Post> posts = [];
   bool sedangMemuat = false;
   String? pesanError;
+  String kataKunci = '';
+  int? filterUserId;
 
   @override
   void initState() {
@@ -67,50 +69,72 @@ class _PostPageState extends State<PostPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    Widget konten;
+  List<Post> get postTerfilter {
+    final q = kataKunci.trim().toLowerCase();
+    return posts.where((p) {
+      final cocokJudul = q.isEmpty || p.title.toLowerCase().contains(q);
+      final cocokUser = filterUserId == null || p.userId == filterUserId;
+      return cocokJudul && cocokUser;
+    }).toList();
+  }
 
-    if (sedangMemuat) {
-      konten = const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 12),
-            Text('Memuat data dari server...'),
-          ],
-        ),
-      );
-    } else if (pesanError != null) {
-      konten = Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+  void tampilkanDetail(Post post) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Post #${post.id} (User ${post.userId})'),
+        content: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.wifi_off, size: 48, color: Colors.red),
+              Text(post.title, style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              Text(pesanError!, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: ambilDaftar,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Coba Lagi'),
-              ),
+              Text(post.body),
             ],
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final daftarUser = posts.map((p) => p.userId).toSet().toList()..sort();
+    final hasilFilter = postTerfilter;
+
+    Widget konten;
+    if (sedangMemuat) {
+      konten = const Center(child: CircularProgressIndicator());
+    } else if (pesanError != null) {
+      konten = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(pesanError!, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: ambilDaftar, child: const Text('Coba Lagi')),
+          ],
+        ),
       );
+    } else if (hasilFilter.isEmpty) {
+      konten = const Center(child: Text('Tidak ada post yang cocok dengan pencarian/filter.'));
     } else {
       konten = ListView.builder(
-        itemCount: posts.length,
+        itemCount: hasilFilter.length,
         itemBuilder: (context, index) {
-          final post = posts[index];
+          final post = hasilFilter[index];
           return ListTile(
             leading: CircleAvatar(child: Text('${post.id}')),
             title: Text(post.title),
-            subtitle: Text('User ID: ${post.userId} • Post ID: ${post.id}'),
+            subtitle: Text('User ID: ${post.userId}'),
+            onTap: () => tampilkanDetail(post),
           );
         },
       );
@@ -118,16 +142,60 @@ class _PostPageState extends State<PostPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tahap 5: Loading, Error & Retry'),
+        title: const Text('Tahap 6: Pencarian, Filter & Detail'),
         actions: [
           IconButton(
             onPressed: sedangMemuat ? null : ambilDaftar,
             icon: const Icon(Icons.refresh),
-            tooltip: 'Muat Ulang',
           ),
         ],
       ),
-      body: konten,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Cari judul post...',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onChanged: (val) => setState(() => kataKunci = val),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                DropdownButton<int?>(
+                  value: filterUserId,
+                  hint: const Text('Semua User'),
+                  items: [
+                    const DropdownMenuItem<int?>(value: null, child: Text('Semua User')),
+                    ...daftarUser.map(
+                      (uid) => DropdownMenuItem<int?>(value: uid, child: Text('User $uid')),
+                    ),
+                  ],
+                  onChanged: (val) => setState(() => filterUserId = val),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Menampilkan ${hasilFilter.length} dari ${posts.length} post',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(child: konten),
+        ],
+      ),
     );
   }
 }
