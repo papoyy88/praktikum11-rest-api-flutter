@@ -28,14 +28,15 @@ class PostPage extends StatefulWidget {
 }
 
 class _PostPageState extends State<PostPage> {
-  // Simulasi endpoint salah untuk menguji HTTP 404
   static const url = 'https://jsonplaceholder.typicode.com/posts';
 
   List<Post> posts = [];
   bool sedangMemuat = false;
   String? pesanError;
+  int? kodeStatusError;
   String kataKunci = '';
   int? filterUserId;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -43,16 +44,25 @@ class _PostPageState extends State<PostPage> {
     ambilDaftar();
   }
 
-  Future<void> ambilDaftar() async {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> ambilDaftar({String? customUrl}) async {
     setState(() {
       sedangMemuat = true;
       pesanError = null;
+      kodeStatusError = null;
     });
 
     try {
-      final r = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final targetUrl = customUrl ?? url;
+      final r = await http.get(Uri.parse(targetUrl)).timeout(const Duration(seconds: 10));
       if (r.statusCode != 200) {
-        throw Exception('HTTP ${r.statusCode} - Resource tidak ditemukan pada endpoint');
+        kodeStatusError = r.statusCode;
+        throw Exception('HTTP ${r.statusCode} - Resource tidak ditemukan');
       }
 
       final decoded = jsonDecode(r.body) as List<dynamic>;
@@ -81,17 +91,27 @@ class _PostPageState extends State<PostPage> {
     }).toList();
   }
 
+  void resetFilter() {
+    setState(() {
+      kataKunci = '';
+      filterUserId = null;
+      _searchController.clear();
+    });
+  }
+
   void tampilkanDetail(Post post) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Post #${post.id} (User ${post.userId})'),
+        title: Text('Detail Post #${post.id}'),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(post.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Chip(label: Text('User ID: ${post.userId}')),
+              const SizedBox(height: 8),
+              Text(post.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 12),
               Text(post.body),
             ],
@@ -111,10 +131,20 @@ class _PostPageState extends State<PostPage> {
   Widget build(BuildContext context) {
     final daftarUser = posts.map((p) => p.userId).toSet().toList()..sort();
     final hasilFilter = postTerfilter;
+    final filterAktif = kataKunci.trim().isNotEmpty || filterUserId != null;
 
     Widget konten;
     if (sedangMemuat) {
-      konten = const Center(child: CircularProgressIndicator());
+      konten = const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 12),
+            Text('Mengambil data dari REST API...'),
+          ],
+        ),
+      );
     } else if (pesanError != null) {
       konten = Center(
         child: Padding(
@@ -122,12 +152,25 @@ class _PostPageState extends State<PostPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.orange),
+              if (kodeStatusError != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Status Error: HTTP $kodeStatusError',
+                    style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              const Icon(Icons.cloud_off, size: 48, color: Colors.red),
               const SizedBox(height: 12),
               Text(pesanError!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: ambilDaftar,
+                onPressed: () => ambilDaftar(),
                 icon: const Icon(Icons.refresh),
                 label: const Text('Coba Lagi'),
               ),
@@ -136,7 +179,21 @@ class _PostPageState extends State<PostPage> {
         ),
       );
     } else if (hasilFilter.isEmpty) {
-      konten = const Center(child: Text('Tidak ada post yang cocok dengan pencarian/filter.'));
+      konten = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search_off, size: 48, color: Colors.grey),
+            const SizedBox(height: 8),
+            const Text('Tidak ada data yang cocok dengan kata kunci atau filter.'),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: resetFilter,
+              child: const Text('Reset Filter'),
+            ),
+          ],
+        ),
+      );
     } else {
       konten = ListView.builder(
         itemCount: hasilFilter.length,
@@ -144,8 +201,9 @@ class _PostPageState extends State<PostPage> {
           final post = hasilFilter[index];
           return ListTile(
             leading: CircleAvatar(child: Text('${post.id}')),
-            title: Text(post.title),
+            title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text('User ID: ${post.userId}'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => tampilkanDetail(post),
           );
         },
@@ -154,11 +212,19 @@ class _PostPageState extends State<PostPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tahap 7: Simulasi Error HTTP 404'),
+        title: const Text('Praktikum 11: REST API - 240111006'),
         actions: [
           IconButton(
-            onPressed: sedangMemuat ? null : ambilDaftar,
+            onPressed: sedangMemuat
+                ? null
+                : () => ambilDaftar(customUrl: 'https://jsonplaceholder.typicode.com/posts-invalid'),
+            icon: const Icon(Icons.bug_report),
+            tooltip: 'Simulasi HTTP 404 (T06)',
+          ),
+          IconButton(
+            onPressed: sedangMemuat ? null : () => ambilDaftar(),
             icon: const Icon(Icons.refresh),
+            tooltip: 'Muat Ulang Data',
           ),
         ],
       ),
@@ -170,10 +236,20 @@ class _PostPageState extends State<PostPage> {
               children: [
                 Expanded(
                   child: TextField(
-                    decoration: const InputDecoration(
+                    controller: _searchController,
+                    decoration: InputDecoration(
                       hintText: 'Cari judul post...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: kataKunci.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () => setState(() {
+                                kataKunci = '';
+                                _searchController.clear();
+                              }),
+                            )
+                          : null,
+                      border: const OutlineInputBorder(),
                       isDense: true,
                     ),
                     onChanged: (val) => setState(() => kataKunci = val),
@@ -195,13 +271,25 @@ class _PostPageState extends State<PostPage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Menampilkan ${hasilFilter.length} dari ${posts.length} post',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  filterAktif
+                      ? 'Hasil filter: ditemukan ${hasilFilter.length} dari ${posts.length} post'
+                      : 'Total data dimuat: ${posts.length} post',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+                if (filterAktif)
+                  GestureDetector(
+                    onTap: resetFilter,
+                    child: const Text(
+                      'Reset',
+                      style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+              ],
             ),
           ),
           const Divider(height: 1),
