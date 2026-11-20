@@ -23,26 +23,44 @@ class Post {
 
 class PostPage extends StatefulWidget {
   const PostPage({super.key});
-  @override State<PostPage> createState() => _PostPageState();
+  @override
+  State<PostPage> createState() => _PostPageState();
 }
+
 class _PostPageState extends State<PostPage> {
-  String hasil = 'Tekan tombol untuk mengambil satu post';
-  Future<void> ambilSatu() async {
-    try {
-      final response = await http.get(Uri.parse('https://jsonplaceholder.typicode.com/posts/2'))
-          .timeout(const Duration(seconds: 10));
-      if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
-      final post = Post.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  List<Post> posts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    ambilDaftar();
+  }
+
+  Future<void> ambilDaftar() async {
+    final response = await http.get(Uri.parse('https://jsonplaceholder.typicode.com/posts'));
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body) as List<dynamic>;
+      final hasil = decoded.map((x) => Post.fromJson(x as Map<String, dynamic>)).toList();
       if (!mounted) return;
-      setState(() => hasil = '${post.id} - ${post.title}');
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => hasil = 'Permintaan gagal: $e');
+      setState(() => posts = hasil);
     }
   }
-  @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Tahap 3: GET satu data')),
-    body: Center(child: Padding(padding: const EdgeInsets.all(16), child: Text(hasil))),
-    floatingActionButton: FloatingActionButton(onPressed: ambilSatu, child: const Icon(Icons.download)),
-  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Tahap 4: GET Daftar Post')),
+      body: ListView.builder(
+        itemCount: posts.length,
+        itemBuilder: (context, index) {
+          final post = posts[index];
+          return ListTile(
+            leading: CircleAvatar(child: Text('${post.id}')),
+            title: Text(post.title),
+            subtitle: Text('User ID: ${post.userId} • Post ID: ${post.id}'),
+          );
+        },
+      ),
+    );
+  }
 }
