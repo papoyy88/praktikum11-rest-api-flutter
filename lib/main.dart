@@ -28,6 +28,9 @@ class PostPage extends StatefulWidget {
 }
 
 class _PostPageState extends State<PostPage> {
+  // Simulasi endpoint salah untuk menguji HTTP 404
+  static const url = 'https://jsonplaceholder.typicode.com/posts';
+
   List<Post> posts = [];
   bool sedangMemuat = false;
   String? pesanError;
@@ -47,10 +50,10 @@ class _PostPageState extends State<PostPage> {
     });
 
     try {
-      final r = await http
-          .get(Uri.parse('https://jsonplaceholder.typicode.com/posts'))
-          .timeout(const Duration(seconds: 10));
-      if (r.statusCode != 200) throw Exception('HTTP ${r.statusCode}');
+      final r = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      if (r.statusCode != 200) {
+        throw Exception('HTTP ${r.statusCode} - Resource tidak ditemukan pada endpoint');
+      }
 
       final decoded = jsonDecode(r.body) as List<dynamic>;
       final hasil = decoded.map((x) => Post.fromJson(x as Map<String, dynamic>)).toList();
@@ -114,13 +117,22 @@ class _PostPageState extends State<PostPage> {
       konten = const Center(child: CircularProgressIndicator());
     } else if (pesanError != null) {
       konten = Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(pesanError!, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: ambilDaftar, child: const Text('Coba Lagi')),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.orange),
+              const SizedBox(height: 12),
+              Text(pesanError!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: ambilDaftar,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Coba Lagi'),
+              ),
+            ],
+          ),
         ),
       );
     } else if (hasilFilter.isEmpty) {
@@ -142,7 +154,7 @@ class _PostPageState extends State<PostPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tahap 6: Pencarian, Filter & Detail'),
+        title: const Text('Tahap 7: Simulasi Error HTTP 404'),
         actions: [
           IconButton(
             onPressed: sedangMemuat ? null : ambilDaftar,
