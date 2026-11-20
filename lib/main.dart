@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+void main() => runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: PostPage()));
 
 class Post {
   final int id;
@@ -18,21 +21,28 @@ class Post {
   }
 }
 
-void main() => runApp(const MaterialApp(home: PostPage()));
-class PostPage extends StatelessWidget {
+class PostPage extends StatefulWidget {
   const PostPage({super.key});
-  @override
-  Widget build(BuildContext context) {
-    const raw = '{"userId": 1, "id": 101, "title": "Model Post", "body": "Parsing tervalidasi tipenya"}';
-    final post = Post.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Tahap 2: Model Data')),
-      body: ListTile(
-        leading: CircleAvatar(child: Text('${post.userId}')),
-        title: Text(post.title),
-        subtitle: Text('User ID: ${post.userId} | ID ${post.id}: ${post.body}'),
-      ),
-
-    );
+  @override State<PostPage> createState() => _PostPageState();
+}
+class _PostPageState extends State<PostPage> {
+  String hasil = 'Tekan tombol untuk mengambil satu post';
+  Future<void> ambilSatu() async {
+    try {
+      final response = await http.get(Uri.parse('https://jsonplaceholder.typicode.com/posts/2'))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
+      final post = Post.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      if (!mounted) return;
+      setState(() => hasil = '${post.id} - ${post.title}');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => hasil = 'Permintaan gagal: $e');
+    }
   }
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Tahap 3: GET satu data')),
+    body: Center(child: Padding(padding: const EdgeInsets.all(16), child: Text(hasil))),
+    floatingActionButton: FloatingActionButton(onPressed: ambilSatu, child: const Icon(Icons.download)),
+  );
 }
